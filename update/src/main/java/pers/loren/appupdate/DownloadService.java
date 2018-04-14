@@ -1,12 +1,12 @@
 package pers.loren.appupdate;
 
 import android.app.IntentService;
+import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
-import android.graphics.Color;
 import android.net.Uri;
 import android.os.Binder;
 import android.os.Build;
@@ -26,14 +26,12 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 
 public class DownloadService extends IntentService {
-    public static String APK_PATH = Environment.getExternalStorageDirectory() + "/update.apk";
-    public static String AUTHORITY = "pers.loren.appupdate.fileprovider";
-
     private static final int BUFFER_SIZE = 10 * 1024; // 8k ~ 32K
     private static final int NOTIFICATION_ID = 0;
     private static final String TAG = "DownloadService";
     private static final String NOTIFICATION_CHANNEL = "DownloadChannel";
-
+    public static String APK_PATH = Environment.getExternalStorageDirectory() + "/update.apk";
+    //    public static String AUTHORITY = BuildConfig.APPLICATION_ID + "appupdate.fileprovider";
     public boolean isDownloading = false;
 
     private Builder mBuilder;
@@ -59,10 +57,10 @@ public class DownloadService extends IntentService {
         mNotifyManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationChannel channel = new NotificationChannel(NOTIFICATION_CHANNEL, "下载",
-                    NotificationManager.IMPORTANCE_DEFAULT);
+                    NotificationManager.IMPORTANCE_HIGH);
             channel.setDescription("下载升级文件");
-            channel.enableLights(true);
-            channel.setLightColor(Color.YELLOW);
+            channel.enableVibration(false);
+            channel.enableLights(false);
             mNotifyManager.createNotificationChannel(channel);
         }
         mBuilder = new Builder(this, NOTIFICATION_CHANNEL);
@@ -150,7 +148,9 @@ public class DownloadService extends IntentService {
         // setContentIntent如果不设置在4.0+上没有问题，在4.0以下会报异常
         PendingIntent pendingintent = PendingIntent.getActivity(this, 0, new Intent(), PendingIntent.FLAG_CANCEL_CURRENT);
         mBuilder.setContentIntent(pendingintent);
-        mNotifyManager.notify(NOTIFICATION_ID, mBuilder.build());
+        Notification notification = mBuilder.build();
+        notification.flags = Notification.FLAG_AUTO_CANCEL | Notification.FLAG_ONLY_ALERT_ONCE;
+        mNotifyManager.notify(NOTIFICATION_ID, notification);
     }
 
     private void installAPk(File apkFile) {
@@ -167,7 +167,7 @@ public class DownloadService extends IntentService {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) {
             uri = Uri.fromFile(apkFile);
         } else {
-            uri = FileProvider.getUriForFile(getApplicationContext(), AUTHORITY, apkFile);
+            uri = FileProvider.getUriForFile(getApplicationContext(), this.getPackageName() + ".appupdate.fileprovider", apkFile);
             intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
         }
         intent.setDataAndType(uri, "application/vnd.android.package-archive");
@@ -175,8 +175,7 @@ public class DownloadService extends IntentService {
         startActivity(intent);
     }
 
-    class MyBinder
-            extends Binder {
+    class MyBinder extends Binder {
         DownloadService getService() {
             return DownloadService.this;
         }
